@@ -54,6 +54,30 @@ mkdirSync(out, { recursive: true });
 writeFileSync(join(out, 'board.json'), `${JSON.stringify({ rows: board })}\n`);
 writeFileSync(join(out, 'data.js'), dataScript(radar));
 
+/** A short one-line label for a category: the dashboard and the dossier both show it. */
+function categoryLabel(category: string | null): string {
+  return category === null ? 'Other' : category;
+}
+
+/** Category totals over the ranked board, for the run summary the judge reads first. */
+function categoryTotals(rows: BoardRow[]): Map<string, number> {
+  const totals = new Map<string, number>();
+  for (const row of rows) {
+    const label = categoryLabel(row.category);
+    totals.set(label, (totals.get(label) ?? 0) + 1);
+  }
+  return totals;
+}
+
+// The run summary carries the board's shape: how many rows per category, and the spread of implied
+// values. A model that silently collapses a category would show here as a flat line.
+const totals = categoryTotals(board);
+const spread = {
+  top: board[0]?.implied_value_usd ?? 0,
+  bottom: board[board.length - 1]?.implied_value_usd ?? 0,
+  median: board[Math.floor(board.length / 2)]?.implied_value_usd ?? 0,
+};
+
 /** Copy one directory's regular files into `to`, skipping names that start with a dot. */
 function copyFiles(from: string, to: string): string[] {
   if (!existsSync(from)) return [];
@@ -87,5 +111,7 @@ writeFileSync(join(out, 'dossier.json'), buildDossier(out, { text_max_bytes: TEX
 
 process.stdout.write(
   `token radar: ${snapshot.protocols.length} protocols, ${snapshot.watchlist.length} on the watchlist, ${board.length} rows scored (${radar.early_size} early, ${radar.live_size} live set aside)\n` +
+    `token radar: ${[...totals.entries()].map(([label, n]) => `${label}=${n}`).join(', ')}\n` +
+    `token radar: implied value spread top=$${spread.top.toLocaleString('en-US')} median=$${spread.median.toLocaleString('en-US')} bottom=$${spread.bottom.toLocaleString('en-US')}\n` +
     `token radar: wrote ${join(out, 'board.json')}, ${join(out, 'data.js')}, ${join(out, 'dashboard')} (3 files), ${join(out, 'screenshots')} (${shots.length} images) and ${join(out, 'dossier.json')}\n`,
 );
